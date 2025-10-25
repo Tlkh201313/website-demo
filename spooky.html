@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Scary Survey: Threshold of Fear</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        /* Custom styles for the spooky atmosphere */
+        @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Inter:wght@400;700&display=swap');
+
+        :root {
+            --color-dark: #0f0f0f;
+            --color-red: #cc0000;
+            --color-accent: #6d0000;
+            --font-display: 'Creepster', cursive;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--color-dark);
+            color: #e0e0e0;
+            font-family: var(--font-body);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: background-color 0.5s;
+        }
+
+        .creepster {
+            font-family: var(--font-display);
+        }
+
+        .survey-card {
+            background-color: #1a1a1a;
+            border: 2px solid var(--color-accent);
+            box-shadow: 0 0 25px rgba(204, 0, 0, 0.4);
+        }
+
+        .option-button {
+            transition: all 0.2s ease-in-out;
+            border-left: 5px solid var(--color-accent);
+            text-align: left;
+        }
+
+        .option-button:hover:not(:disabled) {
+            background-color: #330000;
+            border-left: 5px solid var(--color-red);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(204, 0, 0, 0.2);
+        }
+
+        .end-screen, .jumpscare-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 100;
+            animation: fadeIn 0.5s forwards;
+            overflow: hidden;
+        }
+
+        .jumpscare-modal img, .jumpscare-modal video {
+            max-width: 100vw;
+            max-height: 100vh;
+            object-fit: contain;
+        }
+        
+        .jumpscare-modal-content {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .jumpscare-text {
+            color: var(--color-red);
+            text-shadow: 0 0 15px var(--color-red);
+            line-height: 1;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes pulseRed {
+            0% { box-shadow: 0 0 10px var(--color-red); }
+            50% { box-shadow: 0 0 30px var(--color-red); }
+            100% { box-shadow: 0 0 10px var(--color-red); }
+        }
+
+        .scare-pulse {
+            animation: pulseRed 1.5s infinite alternate;
+        }
+
+        .next-button {
+            transition: all 0.3s;
+        }
+
+        .next-button:hover {
+            background-color: var(--color-red);
+            box-shadow: 0 0 15px var(--color-red);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="survey-container" class="w-full max-w-xl mx-auto p-4 md:p-8">
+        <div class="survey-card rounded-lg p-6 md:p-10 transition-all duration-500 ease-in-out">
+            <h1 class="creepster text-4xl md:text-5xl text-center mb-6 text-red-500 tracking-wider">
+                The Threshold of Fear
+            </h1>
+            <p id="sub-header" class="text-sm text-center mb-8 text-gray-400">
+                Answer truthfully. Your choices determine what waits for you at the end.
+            </p>
+
+            <div id="quiz-area">
+                <p id="question-text" class="text-xl md:text-2xl font-bold mb-6 text-gray-200">
+                    Loading question...
+                </p>
+
+                <div id="options-container" class="space-y-4">
+                    </div>
+
+                <div class="mt-8 pt-4 border-t border-gray-700 flex justify-between items-center">
+                    <p id="question-count" class="text-sm text-gray-500">
+                        Question 1 of 10
+                    </p>
+                    <p id="fear-score" class="text-sm text-red-600 font-bold">
+                        Fear Level: 0
+                    </p>
+                </div>
+            </div>
+
+            <button id="start-button" class="w-full mt-10 p-4 bg-red-800 next-button text-white font-bold rounded-lg shadow-lg hover:bg-red-700 transition duration-300">
+                Begin the Survey
+            </button>
+        </div>
+    </div>
+    
+    <div id="jumpscare-modal" class="jumpscare-modal">
+        <div id="jumpscare-modal-content" class="jumpscare-modal-content">
+            </div>
+    </div>
+
+    <div id="end-screen" class="end-screen">
+        <div id="end-content" class="p-8">
+            </div>
+    </div>
+
+    <script>
+        // Use an IIFE for scope
+        (function() {
+            // --- JUMPSCARE URL CONFIGURATION ---
+            // 
+            // ⚠️ IMPORTANT: Replace these placeholder URLs with your actual scary images (PNG, GIF, JPEG)
+            // or short, unsettling videos (MP4) for the best effect!
+            // --------------------------------------------------------------------------------
+            const JUMPSCARE_URLS = {
+                // Triggered after Question 3 if high-fear option is chosen.
+                '#JUMPSCARE_URL_1': 'https://placehold.co/1920x1080/000000/ff3333?text=I+CAN+HEAR+YOU', 
+
+                // Triggered after Question 7 if high-fear option is chosen.
+                '#JUMPSCARE_URL_2': 'https://placehold.co/1920x1080/000000/cc0000?text=LOOK+BEHIND+YOU', 
+                
+                // Triggered after Question 9 if highest-fear option is chosen.
+                '#JUMPSCARE_URL_3': 'https://placehold.co/1920x1080/000000/ff0000?text=IT%27S+TOO+LATE+FOR+YOU' 
+            };
+            // --------------------------------------------------------------------------------
+
+
+            // --- QUIZ DATA (10 QUESTIONS) ---
+            const quizData = [
+                {
+                    question: "You are alone in an old house. What do you investigate first?",
+                    options: [
+                        { text: "The unsettling, unnatural silence.", fear: 10 },
+                        { text: "The faint whispering sound coming from the basement.", fear: 30 },
+                        { text: "The perfectly locked door that leads outside.", fear: 5 }
+                    ]
+                },
+                {
+                    question: "A dark, tall figure stands motionless at the end of a long hallway. You:",
+                    options: [
+                        { text: "Run back immediately and don't look behind you.", fear: 10 },
+                        { text: "Shout at it, demanding to know what it is.", fear: 20 },
+                        { text: "Slowly walk towards it, hoping it's just a shadow.", fear: 40 }
+                    ]
+                },
+                {
+                    question: "You find a disturbing child's drawing depicting an event that hasn't happened yet. You feel:",
+                    options: [
+                        { text: "A sudden, intense curiosity.", fear: 5 },
+                        { text: "A wave of deep, paralyzing dread.", fear: 25, scareTrigger: '#JUMPSCARE_URL_1' }, // Jumpscare 1 Trigger
+                        { text: "Total disbelief—it must be a prank.", fear: 0 }
+                    ]
+                },
+                {
+                    question: "The lights flicker and die, plunging you into darkness. You hear a loud crash nearby. You:",
+                    options: [
+                        { text: "Freeze, hold your breath, and listen intently.", fear: 15 },
+                        { text: "Fumble frantically for your phone's light.", fear: 5 },
+                        { text: "Scream and drop whatever you were holding.", fear: 30 }
+                    ]
+                },
+                {
+                    question: "You look into a mirror, and your reflection blinks a moment later than you do. What do you do?",
+                    options: [
+                        { text: "Shatter the mirror immediately.", fear: 25 },
+                        { text: "Ask the reflection who they are.", fear: 40 },
+                        { text: "Blink again, convinced you imagined it.", fear: 10 }
+                    ]
+                },
+                {
+                    question: "The air suddenly feels ice cold, but you see no windows open. You assume:",
+                    options: [
+                        { text: "A rational explanation exists, like a broken AC unit.", fear: 5 },
+                        { text: "Something supernatural is actively trying to make contact.", fear: 25 },
+                        { text: "You must be getting sick or running a fever.", fear: 10 }
+                    ]
+                },
+                {
+                    question: "You hear a child giggling right behind you, but when you turn, nothing is there. You:",
+                    options: [
+                        { text: "Quickly turn back and keep moving, ignoring it.", fear: 15 },
+                        { text: "Search the area for a hiding place or another child.", fear: 30, scareTrigger: '#JUMPSCARE_URL_2' }, // Jumpscare 2 Trigger
+                        { text: "Whisper, 'Go away,' and try to remain calm.", fear: 10 }
+                    ]
+                },
+                {
+                    question: "The floorboards groan heavily in the room above you, moving slowly. You believe it's:",
+                    options: [
+                        { text: "The weight of a large animal or a structural settling.", fear: 5 },
+                        { text: "Someone dragging a body across the floor.", fear: 35 },
+                        { text: "Just the house adjusting to the temperature.", fear: 0 }
+                    ]
+                },
+                {
+                    question: "You find a diary with only one sentence repeated on every page: 'I can see you.'",
+                    options: [
+                        { text: "You burn the diary immediately, fearing the connection.", fear: 20 },
+                        { text: "You look around the room, feeling exposed and trapped.", fear: 40, scareTrigger: '#JUMPSCARE_URL_3' }, // Jumpscare 3 Trigger
+                        { text: "You write back, 'Where are you?'", fear: 15 }
+                    ]
+                },
+                {
+                    question: "A voice in your head tells you to open a specific, ominous-looking door. Do you open it?",
+                    options: [
+                        { text: "Yes, driven by an unshakeable compulsion.", fear: 50 },
+                        { text: "No, you lock the door and barricade it.", fear: 10 },
+                        { text: "Only if you can find a weapon first.", fear: 25 }
+                    ]
+                }
+            ];
+            
+            const totalQuestions = quizData.length;
+            const MAX_POSSIBLE_SCORE = quizData.reduce((max, q) => max + Math.max(...q.options.map(o => o.fear)), 0);
+            
+            // --- STATE & DOM ELEMENTS ---
+            let currentQuestionIndex = 0;
+            let fearScore = 0;
+            let audioContextReady = false;
+
+            const startButton = document.getElementById('start-button');
+            const quizArea = document.getElementById('quiz-area');
+            const questionText = document.getElementById('question-text');
+            const optionsContainer = document.getElementById('options-container');
+            const questionCount = document.getElementById('question-count');
+            const fearScoreDisplay = document.getElementById('fear-score');
+            const endScreen = document.getElementById('end-screen');
+            const endContent = document.getElementById('end-content');
+            const subHeader = document.getElementById('sub-header');
+            const jumpscareModal = document.getElementById('jumpscare-modal');
+            const jumpscareModalContent = document.getElementById('jumpscare-modal-content');
+
+            // --- AUDIO SETUP (Tone.js) ---
+            
+            const reverb = new Tone.Reverb({ decay: 4, wet: 0.5 }).toDestination();
+            const tremolo = new Tone.Tremolo({ frequency: 6, depth: 0.75, type: 'sine' }).toDestination().start();
+
+            // 1. Subtle Click/Thud (for button press)
+            const clickSynth = new Tone.MembraneSynth().connect(reverb); 
+
+            // 2. Loud Scare (for jump scares and final ending)
+            const scareNoise = new Tone.NoiseSynth({
+                noise: { type: "white" },
+                envelope: { attack: 0.001, decay: 0.3, sustain: 0.01, release: 0.1 }
+            }).toDestination();
+            scareNoise.volume.value = 5; 
+
+            // 3. Ambient Drone (continuous low hum)
+            const drone = new Tone.FMSynth({
+                oscillator: { type: "sawtooth" },
+                envelope: { attack: 4, decay: 0.5, sustain: 0.5, release: 1 },
+                modulationIndex: 10,
+                harmonicity: 0.5,
+                volume: -25 
+            }).connect(reverb).connect(tremolo);
+
+            // 4. Eerie Transition Sound (creaky/windy effect)
+            const windNoise = new Tone.NoiseSynth({
+                noise: { type: "brown" }, 
+                envelope: { attack: 2, decay: 3, sustain: 0.0, release: 4 }
+            }).toDestination();
+            windNoise.volume.value = -15; 
+
+
+            /** Plays a short, unsettling click/thud sound for option selection. */
+            function playClickSound() {
+                if (audioContextReady) {
+                    clickSynth.triggerAttackRelease("C1", "16n");
+                }
+            }
+
+            /** Plays a sudden, loud sound for the high-scare ending/mid-scares. */
+            function playJumpScare() {
+                if (audioContextReady) {
+                    scareNoise.triggerAttackRelease("4n", Tone.now(), 1.5); 
+                    clickSynth.triggerAttackRelease("A0", "8n", Tone.now() + 0.01, 2); 
+                }
+            }
+            
+            /** Plays an eerie sound when the question changes. */
+            function playTransitionSound() {
+                if (audioContextReady && Math.random() < 0.5) { 
+                    windNoise.triggerAttackRelease("1n"); 
+                }
+            }
+            
+            /** Initializes the Tone.js context when the user interacts. */
+            async function initializeAudioContext() {
+                if (!audioContextReady) {
+                    try {
+                        await Tone.start();
+                        audioContextReady = true;
+                        drone.triggerAttack(10); 
+                    } catch (error) {
+                        console.error("Audio Context failed to start:", error);
+                    }
+                }
+            }
+
+
+            // --- GAME LOGIC ---
+
+            /** Loads the current question and options into the DOM. */
+            function loadQuestion() {
+                if (currentQuestionIndex >= totalQuestions) {
+                    showResults();
+                    return;
+                }
+
+                const currentQuestion = quizData[currentQuestionIndex];
+                questionText.textContent = currentQuestion.question;
+                optionsContainer.innerHTML = '';
+                questionCount.textContent = `Question ${currentQuestionIndex + 1} of ${totalQuestions}`;
+
+                currentQuestion.options.forEach((option) => {
+                    const button = document.createElement('button');
+                    button.textContent = option.text;
+                    button.className = 'option-button w-full p-4 bg-gray-900 text-gray-200 rounded-md border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-red-600 transition duration-150 ease-in-out';
+                    
+                    button.onclick = () => handleAnswer(option); 
+                    
+                    optionsContainer.appendChild(button);
+                });
+            }
+
+            /** Handles the answer, checking for mid-quiz jump scares. */
+            function handleAnswer(option) {
+                playClickSound();
+
+                Array.from(optionsContainer.children).forEach(btn => btn.disabled = true);
+
+                fearScore += option.fear;
+                fearScoreDisplay.textContent = `Fear Level: ${fearScore}`;
+                
+                if (option.scareTrigger && JUMPSCARE_URLS[option.scareTrigger]) {
+                    triggerJumpScare(JUMPSCARE_URLS[option.scareTrigger]);
+                } else {
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        playTransitionSound(); 
+                        loadQuestion();
+                    }, 400); 
+                }
+            }
+
+            /** Displays the jump scare modal. Optimized for fast image/placeholder display. */
+            function triggerJumpScare(url) {
+                // 1. Play the loud, instantaneous sound
+                playJumpScare();
+
+                // 2. Hide the quiz and show the modal
+                quizArea.style.opacity = '0';
+                jumpscareModal.style.display = 'flex';
+                jumpscareModalContent.innerHTML = ''; 
+
+                // 3. Create media element (assuming image or placeholder for speed/stability)
+                const mediaElement = document.createElement('img');
+                mediaElement.src = url;
+                mediaElement.style.objectFit = 'cover';
+                mediaElement.style.width = '100vw';
+                mediaElement.style.height = '100vh';
+                
+                mediaElement.onerror = () => { 
+                    mediaElement.src = 'https://placehold.co/800x600/000000/ffffff?text=ERROR+NO+SCARE+FOUND';
+                    console.error("Failed to load jump scare media:", url);
+                };
+                
+                jumpscareModalContent.appendChild(mediaElement);
+
+                // 4. Auto-dismiss after a short, terrifying period (300ms)
+                setTimeout(dismissJumpScare, 300); 
+            }
+            
+            /** Hides the jump scare modal and resumes the quiz. */
+            function dismissJumpScare() {
+                jumpscareModal.style.display = 'none';
+                quizArea.style.opacity = '1';
+                
+                currentQuestionIndex++;
+                playTransitionSound(); 
+                loadQuestion();
+            }
+
+            /** Calculates the final result and displays the appropriate scary ending. */
+            function showResults() {
+                drone.triggerRelease();
+
+                let resultTitle = '';
+                let resultMessage = '';
+                let bgClass = 'bg-gray-900';
+                
+                const fearPercent = (fearScore / MAX_POSSIBLE_SCORE) * 100;
+
+                if (fearPercent >= 80) { 
+                    resultTitle = "YOU HAVE INVITED IT IN.";
+                    resultMessage = "Your total lack of caution and reckless curiosity has made you an easy target. The survey is over, but your time is not. Look behind you.";
+                    bgClass = 'scare-pulse bg-red-900';
+                    playJumpScare(); // Final Audio Scare
+                } else if (fearPercent >= 50) { 
+                    resultTitle = "IT HAS SEEN YOUR PATH.";
+                    resultMessage = "You were hesitant, you were afraid, and you made enough mistakes for IT to know your weaknesses. You are free to leave, but the shadows remember your face.";
+                    bgClass = 'bg-red-800';
+                } else {
+                    resultTitle = "YOU ESCAPE THE THRESHOLD.";
+                    resultMessage = "Your instinct for caution served you well. You found the correct path out. You are safe. For now. (But the path remains open.)";
+                    bgClass = 'bg-gray-800';
+                }
+
+                endContent.innerHTML = `
+                    <h2 class="creepster text-5xl md:text-7xl jumpscare-text mb-6 transition-opacity duration-1000">
+                        ${resultTitle}
+                    </h2>
+                    <p class="text-xl md:text-2xl text-gray-300 mb-10">
+                        Total Fear Score: <span class="text-red-500 font-bold">${fearScore} / ${MAX_POSSIBLE_SCORE}</span>
+                    </p>
+                    <p class="text-lg md:text-xl text-gray-400 max-w-lg mx-auto mb-10">
+                        ${resultMessage}
+                    </p>
+                    <button onclick="window.location.reload()" class="next-button p-3 md:p-4 bg-gray-700 text-white font-bold rounded-lg shadow-lg hover:bg-gray-600 transition duration-300">
+                        Wake Up (Try Again)
+                    </button>
+                `;
+                
+                endScreen.classList.add(bgClass);
+                endScreen.style.display = 'flex';
+                document.body.classList.remove('justify-center', 'items-center');
+                document.body.style.backgroundColor = 'black';
+            }
+            
+            /** Starts the game, initializes audio, and hides the start button. */
+            function startGame() {
+                initializeAudioContext();
+                
+                startButton.style.display = 'none';
+                subHeader.textContent = "Answer each question to determine your final path.";
+                loadQuestion();
+            }
+
+            // --- EVENT LISTENERS ---
+            startButton.addEventListener('click', startGame);
+
+            // Initial state setup (hiding quiz until start)
+            window.onload = function() {
+                questionText.textContent = "Click 'Begin the Survey' when you are ready to face the unknown.";
+                optionsContainer.innerHTML = '';
+                fearScoreDisplay.textContent = 'Fear Level: 0';
+                questionCount.textContent = `Question 1 of ${totalQuestions}`;
+            }
+
+        })();
+    </script>
+</body>
+</html>
